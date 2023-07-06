@@ -14,14 +14,14 @@ Servo barrierOut;
 #define BARRIER_IN_PIN  23
 #define BARRIER_OUT_PIN 4
 //wifi info
-#define WIFI_SSID "Win10"
+#define WIFI_SSID "Duong"
 #define WIFI_PASSWORD "00000000"
 //FB INFO
-#define API_KEY "AIzaSyBb01NrdKpcT9Nj5cbq8ttb45c8MTFJmCg"
-#define DATABASE_URL "https://demo2-77b78-default-rtdb.asia-southeast1.firebasedatabase.app/"
+#define API_KEY "AIzaSyB13ZLG-6PA9d6qrghp46ctHNnQzuwMJqY"
+#define DATABASE_URL "https://smart-parking-b4df2-default-rtdb.firebaseio.com/"
 // #define USER_EMAIL ""
 // #define USER_PASSWORD ""
-#define STREAM_PATH "/"
+#define STREAM_PATH "/647f467ad3f1cad87ec87dc8"
 #define TOTAL_SLOT_PATH "/total_slot"
 // cycle read fb
 #define FirebaseReadInterval 500
@@ -63,12 +63,12 @@ void setup() {
  barrierInit();
  lcdInit();
  // get total slot
-while(Firebase.ready()&& totalSlot==0){
-  Firebase.getInt(fbData,TOTAL_SLOT_PATH);
-  totalSlot=fbData.intData();
-  Serial.printf("tong so vi tri co the gui xe la:%d",totalSlot); 
-  Serial.println();
- }
+// while(Firebase.ready()&& totalSlot==0){
+//   Firebase.getInt(fbData,TOTAL_SLOT_PATH);
+//   totalSlot=fbData.intData();
+//   Serial.printf("tong so vi tri co the gui xe la:%d",totalSlot); 
+//   Serial.println();
+//  }
 }
 
 
