@@ -11,8 +11,8 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 // servo info
 Servo barrierIn;
 Servo barrierOut;
-#define BARRIER_IN_PIN  22
-#define BARRIER_OUT_PIN 13
+#define BARRIER_IN_PIN  23
+#define BARRIER_OUT_PIN 4
 //wifi info
 #define WIFI_SSID "Win10"
 #define WIFI_PASSWORD "00000000"
@@ -26,7 +26,7 @@ Servo barrierOut;
 // cycle read fb
 #define FirebaseReadInterval 500
 // cycle on servo
-#define barrierInterval 500
+#define barrierInterval 20
 // barrier state type
 typedef enum{
   BARRIER_OPEN  =0,
@@ -114,7 +114,7 @@ void loop() {
             if(barrierInPos<=90){
               Serial.printf("barier in open pos=  %d",barrierInPos);
               Serial.println();
-              barrierInPos+=5;
+              barrierInPos+=2;
               barrierIn.write(barrierInPos);
               //barrierInMillis= millis();
             }else{
@@ -126,7 +126,7 @@ void loop() {
             if(barrierInPos>0){
               Serial.printf("barier in close pos=%d", barrierInPos);
               Serial.println();
-              barrierInPos-=5;
+              barrierInPos-=2;
               barrierIn.write(barrierInPos);
              // barrierInMillis= millis();
             }else{
@@ -144,7 +144,7 @@ void loop() {
             if(barrierOutPos<=90){
               Serial.printf("barier out open pos=  %d",barrierOutPos);
               Serial.println();
-              barrierOutPos+=5;
+              barrierOutPos+=2;
               barrierOut.write(barrierOutPos);
               //barrierInMillis= millis();
             }else{
@@ -156,8 +156,8 @@ void loop() {
             if(barrierOutPos>0){
               Serial.printf("barier iout close pos=%d", barrierOutPos);
               Serial.println();
-              barrierOutPos-=5;
-              barrierOut.write(barrierInPos);
+              barrierOutPos-=2;
+              barrierOut.write(barrierOutPos);
              // barrierInMillis= millis();
             }else{
               lcdPrint(useSlot);
