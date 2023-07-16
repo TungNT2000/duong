@@ -12,14 +12,14 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 Servo barrierIn;
 Servo barrierOut;
 #define BARRIER_IN_PIN 23
-#define BARRIER_OUT_PIN 4
+#define BARRIER_OUT_PIN 2
 // button info
 #define BTN_IN 12
 #define BTN_OUT 13
 OneButton btnIn(BTN_IN, true);
 OneButton btnOut(BTN_OUT, true);
 // wifi info
-#define WIFI_SSID "Win10"
+#define WIFI_SSID "Duong"
 #define WIFI_PASSWORD "00000000"
 // FB INFO
 #define API_KEY "AIzaSyB13ZLG-6PA9d6qrghp46ctHNnQzuwMJqY"
@@ -27,20 +27,11 @@ OneButton btnOut(BTN_OUT, true);
 // #define USER_EMAIL ""
 // #define USER_PASSWORD ""
 #define STREAM_PATH "/647f467ad3f1cad87ec87dc8"
-// test info
-//  #define TOTAL_SLOT_PATH "/total_slot"
-// #define API_KEY "AIzaSyBb01NrdKpcT9Nj5cbq8ttb45c8MTFJmCg"
-// #define DATABASE_URL "https://demo2-77b78-default-rtdb.asia-southeast1.firebasedatabase.app/"
-// // #define USER_EMAIL ""
-// // #define USER_PASSWORD ""
-// #define STREAM_PATH "/"
-// #define TOTAL_SLOT_PATH "/total_slot"
-// cycle to read fb
+#define TOTAL_SLOT_PATH "/total_slot"
+// cycle read fb
 #define FirebaseReadInterval 500
-// cycle to on servo
-#define barrierInterval 20
-// cycle to reconnect wifi
-#define reconnectWiFiInterval 5000
+// cycle on servo
+#define barrierInterval 10
 // barrier state type
 typedef enum
 {
@@ -56,10 +47,8 @@ uint8_t totalSlot;
 uint8_t useSlot;
 uint8_t barrierInPos = 0;
 uint8_t barrierOutPos = 0;
-bool flag1 = false, flag2 = false;
+bool flag1 = false, flag2 = false, flagSendFb = false, flagFb1Send = false, flagFb2Send = false;
 TaskHandle_t taskHandle_1;
-TaskHandle_t taskHandle_2;
-void taskGetCommand(void *parameter);
 void taskAction(void *parameter);
 // put function declarations here:
 // init wifi
@@ -80,36 +69,35 @@ void btnInit();
 void btnInOnClk();
 void btnOutOnClk();
 void btnLoop();
+
 void setup()
 {
   Serial.begin(115200);
   WiFiInit();
   FirebaseInit();
   barrierInit();
-  lcdInit();
+  // lcdInit();
   btnInit();
-  // get total slot
-  // while (Firebase.ready() && totalSlot == 0)
-  // {
-  //   Firebase.getInt(fbData, TOTAL_SLOT_PATH);
-  //   totalSlot = fbData.intData();
-  //   Serial.printf("tong so vi tri co the gui xe la:%d", totalSlot);
-  //   Serial.println();
-  // }
-  // get data from fb
-  xTaskCreatePinnedToCore(taskGetCommand, "TaskGetCmd", 1024 * 15, NULL, 1, &taskHandle_1, 0);
+  //  get total slot
+  //  while(Firebase.ready()&& totalSlot==0){
+  //    Firebase.getInt(fbData,TOTAL_SLOT_PATH);
+  //    totalSlot=fbData.intData();
+  //    Serial.printf("tong so vi tri co the gui xe la:%d",totalSlot);
+  //    Serial.println();
+  //   }
+
   // barrier action
-  xTaskCreatePinnedToCore(taskAction, "TaskAction", 1024 * 15, NULL, 1, &taskHandle_2, 1);
+  xTaskCreatePinnedToCore(taskAction, "TaskAction", 1024 * 15, NULL, 1, &taskHandle_1, 1);
 }
-void taskGetCommand(void *parameter)
+
+void loop()
 {
-  (void)parameter;
-  while (true)
+  // 1 check wifi connection
+  if (WiFi.status() == WL_CONNECTED)
   {
-    // 1 check wifi connection
-    if (WiFi.status() == WL_CONNECTED)
+    // 2 get data from firebase database
+    if (flagSendFb == false)
     {
-      // 2 get data from firebase database
       if (Firebase.ready() && (millis() - recMillis > FirebaseReadInterval || recMillis == 0))
       {
         Firebase.getString(fbData, STREAM_PATH);
@@ -136,12 +124,12 @@ void taskGetCommand(void *parameter)
           if (cmpStr(barrierInStateTmp, "close"))
           {
             dtbState = BARRIER_CLOSE;
-            Serial.println("close");
+            // Serial.println("barrier in close");
           }
           else if (cmpStr(barrierInStateTmp, "open"))
           {
             dtbState = BARRIER_OPEN;
-            Serial.println("open");
+            // Serial.println("barier in open");
           }
           else
           {
@@ -157,12 +145,12 @@ void taskGetCommand(void *parameter)
           if (cmpStr(barrierOutStateTmp, "close"))
           {
             dtbState = BARRIER_CLOSE;
-            Serial.println("close");
+            // Serial.println("barier out close");
           }
           else if (cmpStr(barrierOutStateTmp, "open"))
           {
             dtbState = BARRIER_OPEN;
-            Serial.println("open");
+            // Serial.println("barrier out open");
           }
           else
           {
@@ -177,40 +165,80 @@ void taskGetCommand(void *parameter)
     }
     else
     {
-      // check button update
-      btnLoop();
-      // reconnect wifi
-      if (millis() - recMillis > reconnectWiFiInterval)
+      if (flag1 == false && flag2 == false)
       {
-        Serial.println("Reconnecting to WiFi...");
-        WiFi.disconnect();
-        WiFi.reconnect();
-        recMillis = millis();
+        FirebaseJson json;
+        docIn.clear();
+        if (barrierInState == BARRIER_CLOSE)
+        {
+          docIn["barrier_in"] = "close";
+          json.add("barrier_in", "close");
+        }
+        else
+        {
+          docIn["barrier_in"] = "open";
+          json.add("barrier_in", "open");
+        }
+        if (barrierOutState == BARRIER_CLOSE)
+        {
+          docIn["barrier_out"] = "close";
+          json.add("barrier_out", "close");
+        }
+        else
+        {
+          docIn["barrier_out"] = "open";
+          json.add("barrier_out", "open");
+        }
+        String strData = "";
+        serializeJson(docIn, strData);
+        Serial.println(strData);
+        // send
+        if (Firebase.setJSON(fbData, STREAM_PATH, json))
+        {
+          flagSendFb = false;
+          Serial.println("pub ok");
+        }
+        //
       }
     }
   }
+  else
+  {
+    // reconnect wifi
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.println("reconnect wifi: ");
+    delay(3000);
+  }
 }
+
+//
 void taskAction(void *parameter)
 {
   (void)parameter;
   while (true)
   {
+    // check button update
+    // check button update
+    btnLoop();
+    // 3 action
+    // 3.1 barier_in action
     if (((millis() - barrierInMillis) > barrierInterval || barrierInMillis == 0) && flag1)
     {
-      if (barrierInState == BARRIER_CLOSE)
+      if (barrierInState == BARRIER_OPEN)
       {
-        // open barrier
+        // close barrier
         if (barrierInPos <= 90)
         {
-          Serial.printf("barier in open pos=  %d", barrierInPos);
-          Serial.println();
-          barrierInPos += 2;
-          barrierIn.write(barrierInPos);
+          // Serial.printf("barier in open pos=  %d", barrierInPos + 90);
+          // Serial.println();
+          barrierInPos += 1;
+          barrierIn.write(barrierInPos + 90);
           // barrierInMillis= millis();
         }
         else
         {
-          barrierInState = BARRIER_OPEN;
+          barrierInState = BARRIER_CLOSE;
+          Serial.println("in close");
           flag1 = false;
         }
       }
@@ -219,16 +247,17 @@ void taskAction(void *parameter)
         // close barier
         if (barrierInPos > 0)
         {
-          Serial.printf("barier in close pos=%d", barrierInPos);
-          Serial.println();
-          barrierInPos -= 2;
-          barrierIn.write(barrierInPos);
+          // Serial.printf("barier in close pos=%d", barrierInPos + 90);
+          // Serial.println();
+          barrierInPos -= 1;
+          barrierIn.write(barrierInPos + 90);
           // barrierInMillis= millis();
         }
         else
         {
-          lcdPrint(useSlot);
-          barrierInState = BARRIER_CLOSE;
+          // lcdPrint(useSlot);
+          barrierInState = BARRIER_OPEN;
+          Serial.println("in open");
           flag1 = false;
         }
       }
@@ -237,20 +266,21 @@ void taskAction(void *parameter)
     // 3.2 barier_out action
     if ((millis() - barrierOutMillis > barrierInterval || barrierOutMillis == 0) && flag2)
     {
-      if (barrierOutState == BARRIER_CLOSE)
+      if (barrierOutState == BARRIER_OPEN)
       {
-        // open barrier
+        // close barrier
         if (barrierOutPos <= 90)
         {
-          Serial.printf("barier out open pos=  %d", barrierOutPos);
-          Serial.println();
-          barrierOutPos += 2;
-          barrierOut.write(barrierOutPos);
+          // Serial.printf("barier out open pos=  %d", barrierOutPos+90);
+          // Serial.println();
+          barrierOutPos += 1;
+          barrierOut.write(barrierOutPos + 90);
           // barrierInMillis= millis();
         }
         else
         {
-          barrierOutState = BARRIER_OPEN;
+          barrierOutState = BARRIER_CLOSE;
+          Serial.println("out close");
           flag2 = false;
         }
       }
@@ -259,16 +289,17 @@ void taskAction(void *parameter)
         // close barier
         if (barrierOutPos > 0)
         {
-          Serial.printf("barier iout close pos=%d", barrierOutPos);
-          Serial.println();
-          barrierOutPos -= 2;
-          barrierOut.write(barrierOutPos);
+          // Serial.printf("barier out close pos=%d", barrierOutPos + 90);
+          // Serial.println();
+          barrierOutPos -= 1;
+          barrierOut.write(barrierOutPos + 90);
           // barrierInMillis= millis();
         }
         else
         {
-          lcdPrint(useSlot);
-          barrierOutState = BARRIER_CLOSE;
+          // lcdPrint(useSlot);
+          barrierOutState = BARRIER_OPEN;
+          Serial.println("out open");
           flag2 = false;
         }
       }
@@ -276,16 +307,17 @@ void taskAction(void *parameter)
     }
   }
 }
-void loop() {}
-
 void WiFiInit()
 {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
+  int timer1 = millis();
   while (WiFi.status() != WL_CONNECTED)
   {
+    delay(500);
     Serial.print(".");
-    delay(300);
+    if (millis() - timer1 > 5000)
+      break;
   }
   Serial.println();
   Serial.print("Connected with IP: ");
@@ -302,14 +334,30 @@ void FirebaseInit()
 
 void barrierInit()
 {
-  barrierIn.setPeriodHertz(50);
-  barrierIn.attach(BARRIER_IN_PIN, 500, 2400);
-  barrierOut.setPeriodHertz(50);
-  barrierOut.attach(BARRIER_OUT_PIN, 500, 2400);
+  barrierIn.setPeriodHertz(50);                  // PWM frequency for SG90
+  barrierIn.attach(BARRIER_IN_PIN, 500, 2400);   // Minimum and maximum pulse width (in µs) to go from 0° to 180
+  barrierOut.setPeriodHertz(50);                 // PWM frequency for SG90
+  barrierOut.attach(BARRIER_OUT_PIN, 500, 2400); // Minimum and maximum pulse width (in µs) to go from 0° to 180
   // close barrier
-  barrierIn.write(0);
-  barrierOut.write(0);
+  barrierIn.write(180);
+  barrierOut.write(180);
 }
+
+// void barrierOpen(){
+//   for (uint8_t i = 0; i <=90; i+=5){
+//     Serial.println(i);
+//     barrier.write(i);
+//     delay(15);
+//   }
+// }
+
+// void barrierClose(){
+//    for (uint8_t i = 90; i >0; i-=5){
+//     Serial.println(i);
+//     barrier.write(i);
+//     delay(15);
+//     }
+// }
 
 void lcdInit()
 {
@@ -366,13 +414,39 @@ void btnInOnClk()
 {
   Serial.println("button in click");
   if (flag1 == false)
+  {
     flag1 = true;
+    flagSendFb = true;
+    if (barrierInState == BARRIER_CLOSE)
+    {
+      barrierInState == BARRIER_OPEN;
+      Serial.println("open");
+    }
+    else
+    {
+      barrierInState == BARRIER_CLOSE;
+      Serial.println("close");
+    }
+  }
 }
 void btnOutOnClk()
 {
   Serial.println("button out click");
   if (flag2 == false)
+  {
     flag2 = true;
+    flagSendFb = true;
+    if (barrierOutState == BARRIER_CLOSE)
+    {
+      barrierOutState == BARRIER_OPEN;
+      Serial.println("open");
+    }
+    else
+    {
+      barrierOutState == BARRIER_CLOSE;
+      Serial.println("close");
+    }
+  }
 }
 void btnLoop()
 {
